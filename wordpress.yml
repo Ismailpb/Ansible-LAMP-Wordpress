@@ -1,0 +1,28 @@
+---
+- name: "Downloading Wordpress"
+  get_url:
+    url: "{{ url }}"
+    dest: "/tmp/wordpress.tar.gz"
+
+
+- name: "Extracting Wordpress tar file"
+  unarchive:
+    src: "/tmp/wordpress.tar.gz"
+    dest: "/tmp/"
+    remote_src: true
+
+
+- name: "Copying Wordpress files to  document root of the domain"
+  copy:
+    src: "/tmp/wordpress/"
+    dest: "/var/www/html/{{ domain_name }}/"
+    owner: "{{ httpd_user }}"
+    group: "{{ httpd_group }}"
+    remote_src: true
+
+- name: "Copying wp-config file"
+  template:
+    src: "wp.config.tmp"
+    dest: "/var/www/html/{{ domain_name }}/wp-config.php"
+    owner: "{{ httpd_user }}"
+    group: "{{ httpd_group }}"
