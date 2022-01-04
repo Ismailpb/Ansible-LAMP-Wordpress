@@ -1,0 +1,39 @@
+- name: "Creating my.cnf file"
+  template:
+    src: "my.cnf.tmp"
+    dest: "/root/.my.cnf"
+    owner: "root"
+    group: "root"
+
+- name: "Removing Anonymous User"
+  mysql_user:
+    login_user: "root"      
+    login_password: "{{ mysql_root_password }}"      
+    name: ""
+    state: absent
+    host_all: true
+
+
+- name: "Removing Test Database"
+  mysql_db:
+    login_user: "root"
+    login_password: "{{ mysql_root_password }}"    
+    name: "test"
+    state: absent
+
+
+- name: "Creating Wordpress Database Called {{ wp_db_name }}"
+  mysql_db:
+    login_user: "root"
+    login_password: "{{ mysql_root_password }}"
+    name: "{{ wp_db_name }}"
+    state: present
+
+- name: "Creating Wordpress User {{ wp_db_user }} and setting privileges"
+  mysql_user:
+    login_user: "root"
+    login_password: "{{ mysql_root_password }}"
+    user: "{{ wp_db_user }}"
+    state: present
+    password: "{{ wp_db_password }}"
+    priv: "{{ wp_db_name }}.*:ALL"
