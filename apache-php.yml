@@ -1,0 +1,28 @@
+---
+
+    - name: "Apache - Installing httpd server"
+      yum:
+        name: httpd
+        state: present
+            
+    - name: "Apache - Installing php Support"
+      shell: "amazon-linux-extras install php7.4 -y"
+        
+    
+    - name: "Apache - Creating VirtualHost"
+      template:
+        src: virtualhost.conf.tmp
+        dest: "/etc/httpd/conf.d/{{domain_name}}.conf"
+        
+    - name: "Apache - Creating DocumentRoot"
+      file:
+        path: "/var/www/html/{{ domain_name }}"
+        state: directory
+        owner: "{{ httpd_user }}"
+        group: "{{ httpd_group  }}"
+            
+    - name: "Apache - Restarting/Enabling Service"
+      service:
+        name: httpd
+        state: restarted
+        enabled: true
