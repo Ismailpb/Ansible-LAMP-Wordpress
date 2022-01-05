@@ -7,6 +7,8 @@
       - MySQL-python
     state: present
   register: mysql_status
+  notify:
+    - mariadb_restart
 
 
 - name: "mariadb-restart"
