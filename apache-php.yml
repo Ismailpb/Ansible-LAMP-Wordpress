@@ -4,15 +4,22 @@
       yum:
         name: httpd
         state: present
-            
+      tags:
+        - httpd
+
     - name: "Apache - Installing php Support"
       shell: "amazon-linux-extras install php7.4 -y"
-        
+      tags:
+        - httpd  
     
     - name: "Apache - Creating VirtualHost"
       template:
         src: virtualhost.conf.tmp
         dest: "/etc/httpd/conf.d/{{domain_name}}.conf"
+      tags:
+        - httpd
+      notify:
+        - httpd_restart
         
     - name: "Apache - Creating DocumentRoot"
       file:
@@ -20,9 +27,13 @@
         state: directory
         owner: "{{ httpd_user }}"
         group: "{{ httpd_group  }}"
-            
-    - name: "Apache - Restarting/Enabling Service"
+      tags:
+        - httpd
+
+    - name: "Apache - Restart/Enabling Service"
       service:
         name: httpd
         state: restarted
         enabled: true
+      tags:
+        - httpd
