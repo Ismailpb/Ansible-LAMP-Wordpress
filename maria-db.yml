@@ -6,58 +6,78 @@
       - mariadb-server
       - MySQL-python
     state: present
+  register: mysql_status
+
 
 - name: "mariadb-restart"
+  when: mysql_status.changed == true
   service:
     name: mariadb
     state: restarted
     enabled: true
+  tags:
+    - mariadb
+
 
 - name: "Setup Root password"
+  when: mysql_status.changed == true
   mysql_user:
     login_user: root
     login_password: ""
     name: root
     password: "{{ mysql_root_password }}"
     host_all: yes
+  tags:
+    - mariadb
 
 
 - name: "Creating my.cnf file"
+  when: mysql_status.changed == true
   template:
     src: "my.cnf.tmp"
     dest: "/root/.my.cnf"
     owner: "root"
     group: "root"
+  tags:
+    - mariadb
+
 
 - name: "Removing Anonymous User"
+  when: mysql_status.changed == true
   mysql_user:
-    login_user: "root"      
-    login_password: "{{ mysql_root_password }}"      
+    config_file: /root/.my.cnf   
     name: ""
     state: absent
     host_all: true
+  tags:
+    - mariadb
 
 
 - name: "Removing Test Database"
+  when: mysql_status.changed == true
   mysql_db:
-    login_user: "root"
-    login_password: "{{ mysql_root_password }}"    
+    config_file: /root/.my.cnf
     name: "test"
     state: absent
+  tags:
+    - mariadb
 
 
 - name: "Creating Wordpress Database Called {{ wp_db_name }}"
   mysql_db:
-    login_user: "root"
-    login_password: "{{ mysql_root_password }}"
+    config_file: /root/.my.cnf
     name: "{{ wp_db_name }}"
     state: present
+  tags:
+    - mariadb
+
 
 - name: "Creating Wordpress User {{ wp_db_user }} and setting privileges"
   mysql_user:
-    login_user: "root"
-    login_password: "{{ mysql_root_password }}"
+    config_file: /root/.my.cnf
     user: "{{ wp_db_user }}"
     state: present
     password: "{{ wp_db_password }}"
     priv: "{{ wp_db_name }}.*:ALL"
+  tags:
+    - mariadb
