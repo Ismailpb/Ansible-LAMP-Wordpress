@@ -22,10 +22,15 @@
           - "/tmp/wordpress"
 
 
-    - name: "Post-Installation - Restarting"
+  handlers:
+    - name: "httpd_restart"
       service:
-        name: "{{ item }}"
+        name: httpd
         state: restarted
-      with_items:
-          - httpd
-          - mariadb 
+        enabled: true
+
+    - name: "mariadb_restart"
+      service:
+        name: mariadb
+        state: restarted
+        enabled: true
