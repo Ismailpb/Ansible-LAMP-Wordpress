@@ -22,7 +22,7 @@
 
 - name: "Copying wp-config file"
   template:
-    src: "wp.config.tmp"
+    src: "wp.config.tmpl"
     dest: "/var/www/html/{{ domain_name }}/wp-config.php"
     owner: "{{ httpd_user }}"
     group: "{{ httpd_group }}"
