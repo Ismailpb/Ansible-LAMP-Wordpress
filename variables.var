@@ -1,6 +1,6 @@
 ---
 
-domain_name: "ismail.host"
+domain_name: "xyz.com"
 url: "https://wordpress.org/latest.tar.gz"
 httpd_port: "80"
 httpd_user: "apache"
