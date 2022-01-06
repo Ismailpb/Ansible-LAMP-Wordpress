@@ -86,338 +86,384 @@ ansible -i remote all  -m  ping
 ```
 This will perform the command on all the groups mentioned in the inventory file. 
 
-#### Install lamp  using playbook.
-```sh
-vi lampstack.yml
-```
-```sh
----
-- name: " install wordpress"
-  become: true
-  hosts: group
-  vars_files:
-  - variables.vars
-  - mysqlvariables.var
-  tasks:
-  - include_tasks: wordpress.yml
-```
-This is the main playbook
- become: true     _## the commands needs to be ran as sudo privilege_
- hosts: group     _## the commands should be run on the servers under the group 'group'_
- hosts: group     _## variable declaration. Here we have declared variables on two files variables.vars and mysqlvariables.var_
-tasks:  _## the task that needs to be executed is on the playbook wordpress.yml_
+Installation
 
-> Note I used the task for lamp-stack on separate playbook and defined a call to that on the main playbook
+We can go through step by step installation.
 
-##### Installing lamp
-```sh
-wordpress.yml
-```
-```sh
+Before to start with the installation we need to set some variables for the lamp stack installation. For that I have created a file named "variables.var" and added the variable values. You can check which all variables have been mentioned in the file.
+
+cat variables.var
+
 ---
-- name: " install apache, PHP and mariadb"
+
+domain_name: "xyz.com"
+url: "https://wordpress.org/latest.tar.gz"
+httpd_port: "80"
+httpd_user: "apache"
+httpd_group: "apache"
+
+mysql_root_password: "mysql@123"
+wp_db_name: "wordpress"
+wp_db_user: "wordpress"
+wp_db_password: "wordpress"
+---
+
+Also we need to create a default virtual host file, wordpress configuration file and mysql config file.
+
+cat virtualhost.conf.tmpl
+---
+
+ <virtualhost *:{{ httpd_port }}>
+  
+  servername {{ domain_name }}
+  documentroot /var/www/html/{{ domain_name }} 
+  directoryindex index.php index.html
+    
+  <directory "/var/www/html/{{ domain_name }}">
+     allowoverride all
+  </directory>
+
+</virtualhost>
+---
+
+cat my.cnf.tmpl
+---
+[client]
+user=mysqluser
+password= {{ mysql_root_password }}
+
+---
+
+cat wp-config.tmpl
+
+---
+<?php
+/**
+ * The base configuration for WordPress
+ *
+ * The wp-config.php creation script uses this file during the installation.
+ * You don't have to use the web site, you can copy this file to "wp-config.php"
+ * and fill in the values.
+ *
+ * This file contains the following configurations:
+ *
+ * * Database settings
+ * * Secret keys
+ * * Database table prefix
+ * * ABSPATH
+ *
+ * @link https://wordpress.org/support/article/editing-wp-config-php/
+ *
+ * @package WordPress
+ */
+
+// ** Database settings - You can get this info from your web host ** //
+/** The name of the database for WordPress */
+define( 'DB_NAME', '{{ wp_db_name }}' );
+
+/** Database username */
+define( 'DB_USER', '{{ wp_db_user }}' );
+
+/** Database password */
+define( 'DB_PASSWORD', '{{ wp_db_password }}' );
+
+/** Database hostname */
+define( 'DB_HOST', 'localhost' );
+
+/** Database charset to use in creating database tables. */
+define( 'DB_CHARSET', 'utf8' );
+
+/** The database collate type. Don't change this if in doubt. */
+define( 'DB_COLLATE', '' );
+
+/**#@+
+ * Authentication unique keys and salts.
+ *
+ * Change these to different unique phrases! You can generate these using
+ * the {@link https://api.wordpress.org/secret-key/1.1/salt/ WordPress.org secret-key service}.
+ *
+ * You can change these at any point in time to invalidate all existing cookies.
+ * This will force all users to have to log in again.
+ *
+ * @since 2.6.0
+ */
+define( 'AUTH_KEY',         'put your unique phrase here' );
+define( 'SECURE_AUTH_KEY',  'put your unique phrase here' );
+define( 'LOGGED_IN_KEY',    'put your unique phrase here' );
+define( 'NONCE_KEY',        'put your unique phrase here' );
+define( 'AUTH_SALT',        'put your unique phrase here' );
+define( 'SECURE_AUTH_SALT', 'put your unique phrase here' );
+define( 'LOGGED_IN_SALT',   'put your unique phrase here' );
+define( 'NONCE_SALT',       'put your unique phrase here' );
+
+/**#@-*/
+
+/**
+ * WordPress database table prefix.
+ *
+ * You can have multiple installations in one database if you give each
+ * a unique prefix. Only numbers, letters, and underscores please!
+ */
+$table_prefix = 'wp_';
+
+/**
+ * For developers: WordPress debugging mode.
+ *
+ * Change this to true to enable the display of notices during development.
+ * It is strongly recommended that plugin and theme developers use WP_DEBUG
+ * in their development environments.
+ *
+ * For information on other constants that can be used for debugging,
+ * visit the documentation.
+ *
+ * @link https://wordpress.org/support/article/debugging-in-wordpress/
+ */
+define( 'WP_DEBUG', false );
+
+/* Add any custom values between this line and the "stop editing" line. */
+
+
+
+/* That's all, stop editing! Happy publishing. */
+
+/** Absolute path to the WordPress directory. */
+if ( ! defined( 'ABSPATH' ) ) {
+	define( 'ABSPATH', __DIR__ . '/' );
+}
+
+/** Sets up WordPress vars and included files. */
+require_once ABSPATH . 'wp-settings.php';
+---
+
+Once the files were ready we can start with the installation of lampstack.
+
+For that here I used the task for lamp-stack on separate playbook and defined a call to that on the main playbook
+
+1. Installation of Apache-PHP
+
+For that I have created a file named "apache-phpinstallation.yml".
+
+---
+
+    - name: "Apache - Installing httpd server"
+      yum:
+        name: httpd
+        state: present
+      tags:
+        - httpd
+
+    - name: "Apache - Installing php Support"
+      shell: "amazon-linux-extras install php7.4 -y"
+      tags:
+        - httpd  
+    
+    - name: "Apache - Creating VirtualHost"
+      template:
+        src: virtualhost.conf.tmpl
+        dest: "/etc/httpd/conf.d/{{domain_name}}.conf"
+      tags:
+        - httpd
+      notify:
+        - httpd_restart
+        
+    - name: "Apache - Creating DocumentRoot"
+      file:
+        path: "/var/www/html/{{ domain_name }}"
+        state: directory
+        owner: "{{ httpd_user }}"
+        group: "{{ httpd_group  }}"
+      tags:
+        - httpd
+
+    - name: "Apache - Restart/Enabling Service"
+      service:
+        name: httpd
+        state: restarted
+        enabled: true
+      tags:
+        - httpd
+
+The yum module will install httpd.
+Using tags 'httpd', we have better control over installation. We can install the httpd alone by using the tag.
+Also you can see the "notify" as I have set an handler to restart the httpd service when the whole process complete.
+
+
+2.Installation of mariadb
+
+For that I have created a file named "mariadb-installation.yml".
+
+---
+
+- name: "Installing Mariadb and python mysql module"
   yum:
     name:
-    - httpd
-    - mariadb-server
-    - MySQL-python
+      - mariadb-server
+      - MySQL-python
     state: present
-  register: install_status
-- name: "installing PHP"
-  shell: amazon-linux-extras install php7.4 -y
-- name: "mariadb/Apache - restarting/enabling service"
-  when: install_status.changed == true
+  register: mysql_status
+
+- name: "mariadb-restart"
+  when: mysql_status.changed == true
   service:
-    name: {{ item}}
+    name: mariadb
     state: restarted
     enabled: true
-  with_items:
-  - httpd
-  - mariadb
-```
-> The yum module will install httpd, mariadb and mysql-python (to communicate mysql with python) and store the status on the register variable "install_status"
+  tags:
+    - mariadb
 
-> when: install_status.changed == true
-when HTTP and mariadb is installed, that is, whenever the register variable "install_status" value is changed to true, it will perform restart of both the services. 
 
-Now the installation of Apache mariadb PHP is completed. 
-
-I defined some variables for mysql and apache
-```sh
-cat mysqlvariables.var
-```
-```sh
-mysql_password: "password"
-wordpress_database: "wordpress"
-wordpress_pass: "wordpress"
-wordpress_user: "wordpress"
-wordpress_url: "https://wordpress.org/wordpress-5.7.2.tar.gz"
-```
-```sh
-cat variables.vars
-```
-```sh
-domain_name: "gigingeorge.online"
-port: "80"
-user_name: "apache"
-group_name: "apache"
-```
-
-We need to configure all the services. 
-
-##### configure Virtual host for apache
-```sh
-- name: "Configure virtual_host"
-  template:
-    src: httpd.conf.tmpl
-    dest: "/etc/httpd/conf.d/{{domain_name}}.conf"
-  register: docroot_status
-- name: "Apache conf"
-  template:
-    src: apache.conf.tmpl
-    dest: "/etc/httpd/httpd.conf"
-  register: conf_status    
-- name: "creating document root"
-  file:
-    path: "/var/www/html/{{ domain_name }}"
-    state: directory
-    owner: "{{ user_name }}"
-    group: "{{ group_name }}"
-- name : "Syntax check httpd"
-  shell: httpd -t
-  register: syntax_check
-```
-> The file named httpd.conf.tmpl is copied to the destination directory /etc/httpd/conf.d/{{domain_name}}.conf and register the status as conf_status
-I used template module to copy the values that are defined as variables. 
-httpd.conf is also copied to destination server
-
-> Aapche syntax check is performed and registered on syntax_check
-
-##### Mysql configuration
-```sh
-- name: "Mysql configuration"
-  ignore_errors: true
+- name: "Setup Root password"
+  when: mysql_status.changed == true
   mysql_user:
-    login_user: "root"
+    login_user: root
     login_password: ""
-    user: "root"
-    password: "{{ mysql_password }}"
-    host_all: true
-  register: password_status
+    name: root
+    password: "{{ mysql_root_password }}"
+    host_all: yes
+  tags:
+    - mariadb
 
-- name: "mariadb - removing anonymous users"
+
+- name: "Creating my.cnf file"
+  when: mysql_status.changed == true
+  template:
+    src: "my.cnf.tmpl"
+    dest: "/root/.my.cnf"
+    owner: "root"
+    group: "root"
+  tags:
+    - mariadb
+
+
+- name: "Removing Anonymous User"
+  when: mysql_status.changed == true
   mysql_user:
-    login_user: "root"
-    login_password: "{{ mysql_password }}"
-    user: ""
+    config_file: /root/.my.cnf   
+    name: ""
     state: absent
+    host_all: true
+  tags:
+    - mariadb
 
-- name: "Creating database for wordpress"
+
+- name: "Removing Test Database"
+  when: mysql_status.changed == true
   mysql_db:
-    login_user: "root"
-    login_password: "{{ mysql_password }}"
-    name: "{{ wordpress_database }}"
+    config_file: /root/.my.cnf
+    name: "test"
+    state: absent
+  tags:
+    - mariadb
 
-- name: "creating wordpress mysqluser"
+
+- name: "Creating Wordpress Database Called {{ wp_db_name }}"
+  mysql_db:
+    config_file: /root/.my.cnf
+    name: "{{ wp_db_name }}"
+    state: present
+  tags:
+    - mariadb
+
+
+- name: "Creating Wordpress User {{ wp_db_user }} and setting privileges"
   mysql_user:
-    login_user: "root"
-    login_password: "{{ mysql_password }}"
-    user: "{{ wordpress_user }}"
-    password: "{{ wordpress_pass }}"
-    priv: '{{ wordpress_database }}.*:ALL'
-```
-> Process flow:
+    config_file: /root/.my.cnf
+    user: "{{ wp_db_user }}"
+    state: present
+    password: "{{ wp_db_password }}"
+    priv: "{{ wp_db_name }}.*:ALL"
+  tags:
+    - mariadb
+
+The yum module will install mariadb and mysql-python (to communicate mysql with python) and store the status on the register variable "mysql_status"
+
+> when: mysql_status.changed == true
+Once mariadb is installed and whenever the register variable "mysql_status" value is changed to true, it will perform restart of the service mariadb.
+
+Regarding with the mysql configuration
+
 1. During intial installation, we will login to mysql root user with null password. 
 2. We need to set root password for mysql
-3. Removed all anonymous user by loging in as root with new password
+3. Removed all anonymous user and test db by loging in as root with new password
 4. Created wordpress database using mysql_db module
 5. Created wordpress user using mysql_user module, defined the password and provided full access to the database
 
 > ignore_errors: true    _## once the mysql is installed, and root password is set, when we re-run the play, it will thow error as mysql root login can't be possible using null password. As a result the playbook will exit the process. 
-To avoid that we add  ignore_errors: true, even though there is error, the playbook will continue to check to next task
+To avoid that we add  ignore_errors: true, even though there is error, the playbook will continue to check with next task.
 
-##### configure wordpress
-```sh
-- name: " Download wordpress"
+3. Configuring Wordpress
+
+cat wordpress-configuration.yml
+
+---
+- name: "Downloading Wordpress"
   get_url:
-    url: "{{ wordpress_url }}"
-    dest: /tmp/wordpress.tar
+    url: "{{ url }}"
+    dest: "/tmp/wordpress.tar.gz"
 
-- name: "extract wordpress"
+
+- name: "Extracting Wordpress tar file"
   unarchive:
-    src: /tmp/wordpress.tar
-    dest: /tmp/
+    src: "/tmp/wordpress.tar.gz"
+    dest: "/tmp/"
     remote_src: true
-- name: "copying wordpress files"
+
+
+- name: "Copying Wordpress files to  document root of the domain"
   copy:
     src: "/tmp/wordpress/"
     dest: "/var/www/html/{{ domain_name }}/"
+    owner: "{{ httpd_user }}"
+    group: "{{ httpd_group }}"
     remote_src: true
 
-- name: copy wp-config file
+- name: "Copying wp-config file"
   template:
-    src: wp-config.php.tmpl
+    src: "wp.config.tmpl"
     dest: "/var/www/html/{{ domain_name }}/wp-config.php"
-    owner: "{{user_name}}"
-    group: "{{ group_name }}"
-- name: " cleanup"
-  file:
-    path: "{{ item }}"
-    state: absent
-  with_items:
-  - /tmp/wordpress
-  - /tmp/wordpress.tar
-```
-> Process flow:
-1. Download wordpress defined in the variable name wordpress_url and saved it to a pre-defined name so that we can extract it
-2. extract the content using unarchive module
+    owner: "{{ httpd_user }}"
+    group: "{{ httpd_group }}"
+
+How it works
+
+1. Download wordpress defined in the variable name "url" using get_url module and saved it to a pre-defined name so that we can extract it.
+2. Extract the content using unarchive module
 remote_src: true  ## if this is not defined, by default, the src path mentioned on the unarchive will check on Master server and since it's not present, it will throw error. If remote_src is enabled, it will check on the remote server itself.
 3. copy the contents from the extracted directory to our home directory. 
-4. copy the wp-config file from master server "wp-config.php.tmpl" as wp-config.php on the remote server's document root so that the database informations can be defined. 
-5. remove the downloaded/extracted folders
+4. copy the wp-config file from master server "wp-config.tmpl" as wp-config.php on the remote server's document root so that the database informations can be defined. 
 
-##### Restart Apache and mysql and we made changes on conf
-```sh
-- name: "Restart httpd"
-  when : syntax_check.rc == 0 and conf_status.changed == true or docroot_status.changed == true
-  service:
-    name: httpd
-    state: restarted
-```
-```sh
-- name: "Restart mariadb after setting root password"
-  when: password_status.changed == true
-  service:
-    name: mariadb
-    state: restarted
-    enabled: true
-```
-    
-The entire yml file will be
-```sh
+Once the above installation completed, we can proceed to create the main playbook file.
+
+Cat main.yml
+
+
 ---
-- name: " install apache and PHP and mariadb"
-  yum:
-    name:
-    - httpd
-    - mariadb-server
-    - MySQL-python
-    state: present
-  register: install_status
-- name: "installing PHP"
-  shell: amazon-linux-extras install php7.4 -y
+- name: "LAMP-Wordpress"
+  hosts: amazon
+  become: true
+  vars_files:
+    - variables.tmpl
 
-- name: "Configure virtual_host"
-  template:
-    src: httpd.conf.tmpl
-    dest: "/etc/httpd/conf.d/{{domain_name}}.conf"
-  register: conf_status
-- name: "Apache conf"
-  template:
-    src: apache.conf.tmpl
-    dest: "/etc/httpd/httpd.conf"
+  tasks:
+    
 
-- name: "creating document root"
-  file:
-    path: "/var/www/html/{{ domain_name }}"
-    state: directory
-    owner: "{{ user_name }}"
-    group: "{{ group_name }}"
-
-- name : "Syntax check httpd"
-  shell: httpd -t
-  register: syntax_check
-
-- name: "mariadb/Apache - restarting/enabling service"
-  when: install_status.changed == true
-  service:
-    name: {{ item}}
-    state: restarted
-    enabled: true
-  with_items:
-  - httpd
-  - mariadb
-- name: "Mysql configuration"
-  ignore_errors: true
-  mysql_user:
-    login_user: "root"
-    login_password: ""
-    user: "root"
-    password: "{{ mysql_password }}"
-    host_all: true
-  register: password_status
-
-- name: "mariadb - removing anonymous users"
-  mysql_user:
-    login_user: "root"
-    login_password: "{{ mysql_password }}"
-    user: ""
-    state: absent
-
-- name: "Creating database for wordpress"
-  mysql_db:
-    login_user: "root"
-    login_password: "{{ mysql_password }}"
-    name: "{{ wordpress_database }}"
-
-- name: "creating wordpress mysqluser"
-  mysql_user:
-    login_user: "root"
-    login_password: "{{ mysql_password }}"
-    user: "{{ wordpress_user }}"
-    password: "{{ wordpress_pass }}"
-    priv: '{{ wordpress_database }}.*:ALL'
-
-- name: " Creating index.php"
-  copy:
-    content: "<?php phpinfo() ?>"
-    dest: "/var/www/html/{{ domain_name }}/test.php"
-    owner: "{{user_name}}"
-    group: "{{ group_name }}"
-- name: " Download wordpress"
-  get_url:
-    url: "{{ wordpress_url }}"
-    dest: /tmp/wordpress.tar
-
-- name: "extract wordpress"
-  unarchive:
-    src: /tmp/wordpress.tar
-    dest: /tmp/
-    remote_src: true
-- name: "copying wordpress files"
-  copy:
-    src: "/tmp/wordpress/"
-    dest: "/var/www/html/{{ domain_name }}/"
-    remote_src: true
-    owner: "{{user_name}}"
-    group: "{{ group_name }}"
+    - include_tasks: apache-phpinstallation.yml
+    - include_tasks: mariadb-installation.yml
+    - include_tasks: wordpress-configuration.yml
 
 
-- name: copy wp-config file
-  template:
-    src: wp-config.php.tmpl
-    dest: "/var/www/html/{{ domain_name }}/wp-config.php"
-    owner: "{{user_name}}"
-    group: "{{ group_name }}"
-- name: " cleanup"
-  file: 
-    path: "{{ item }}"
-    state: absent
-  with_items:
-  - /tmp/wordpress
-  - /tmp/wordpress.tar
- 
-- name: "Restart and enable httpd"
-  when : syntax_check.rc == 0 and conf_status.changed == true 
-  service:
-    name: httpd
-    state: restarted
-    enabled: true
+    - name: "Post-Installation - CleanUp"
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+          - "/tmp/wordpress.tar.gz"
+          - "/tmp/wordpress"
 
-- name: " Restart and enable mariadb"
-  when: password_status.changed == true 
-  service:
-    name: mariadb
-    state: restarted
-    enabled: true
-```
+
+  handlers:
+    - name: "httpd_restart"
+      service:
+        name: httpd
+        state: restarted
+        enabled: true
