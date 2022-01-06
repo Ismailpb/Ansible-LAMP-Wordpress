@@ -14,7 +14,7 @@
     
     - name: "Apache - Creating VirtualHost"
       template:
-        src: virtualhost.conf.tmp
+        src: virtualhost.conf.tmpl
         dest: "/etc/httpd/conf.d/{{domain_name}}.conf"
       tags:
         - httpd
