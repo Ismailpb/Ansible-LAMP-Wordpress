@@ -3,14 +3,14 @@
   hosts: amazon
   become: true
   vars_files:
-    - variables.tmp
+    - variables.var
 
   tasks:
     
 
-    - include_tasks: apache-php.yml
-    - include_tasks: maria-db.yml
-    - include_tasks: wordpress.yml
+    - include_tasks: apache-phpinstallation.yml
+    - include_tasks: mariadb-installation.yml
+    - include_tasks: wordpress-configuration.yml
 
 
     - name: "Post-Installation - CleanUp"
