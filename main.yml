@@ -28,9 +28,3 @@
         name: httpd
         state: restarted
         enabled: true
-
-    - name: "mariadb_restart"
-      service:
-        name: mariadb
-        state: restarted
-        enabled: true
