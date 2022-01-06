@@ -7,9 +7,7 @@
       - MySQL-python
     state: present
   register: mysql_status
-  notify:
-    - mariadb_restart
-
+ 
 
 - name: "mariadb-restart"
   when: mysql_status.changed == true
@@ -36,7 +34,7 @@
 - name: "Creating my.cnf file"
   when: mysql_status.changed == true
   template:
-    src: "my.cnf.tmp"
+    src: "my.cnf.tmpl"
     dest: "/root/.my.cnf"
     owner: "root"
     group: "root"
