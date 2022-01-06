@@ -86,12 +86,13 @@ ansible -i remote all  -m  ping
 ```
 This will perform the command on all the groups mentioned in the inventory file. 
 
-Installation
+# Installation
 
 We can go through step by step installation.
 
 Before to start with the installation we need to set some variables for the lamp stack installation. For that I have created a file named "variables.var" and added the variable values. You can check which all variables have been mentioned in the file.
 
+```
 cat variables.var
 
 ---
@@ -106,10 +107,11 @@ mysql_root_password: "mysql@123"
 wp_db_name: "wordpress"
 wp_db_user: "wordpress"
 wp_db_password: "wordpress"
----
+```
 
 Also we need to create a default virtual host file, wordpress configuration file and mysql config file.
 
+```
 cat virtualhost.conf.tmpl
 ---
 
@@ -124,16 +126,17 @@ cat virtualhost.conf.tmpl
   </directory>
 
 </virtualhost>
----
+```
 
+```
 cat my.cnf.tmpl
 ---
 [client]
 user=mysqluser
 password= {{ mysql_root_password }}
+```
 
----
-
+```
 cat wp-config.tmpl
 
 ---
@@ -233,16 +236,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /** Sets up WordPress vars and included files. */
 require_once ABSPATH . 'wp-settings.php';
----
+```
 
 Once the files were ready we can start with the installation of lampstack.
 
 For that here I used the task for lamp-stack on separate playbook and defined a call to that on the main playbook
 
-1. Installation of Apache-PHP
+### 1. Installation of Apache-PHP
 
 For that I have created a file named "apache-phpinstallation.yml".
 
+```
 ---
 
     - name: "Apache - Installing httpd server"
@@ -282,16 +286,18 @@ For that I have created a file named "apache-phpinstallation.yml".
         enabled: true
       tags:
         - httpd
+```
 
 The yum module will install httpd.
 Using tags 'httpd', we have better control over installation. We can install the httpd alone by using the tag.
 Also you can see the "notify" as I have set an handler to restart the httpd service when the whole process complete.
 
 
-2.Installation of mariadb
+### 2.Installation of mariadb
 
 For that I have created a file named "mariadb-installation.yml".
 
+```
 ---
 
 - name: "Installing Mariadb and python mysql module"
@@ -374,6 +380,7 @@ For that I have created a file named "mariadb-installation.yml".
     priv: "{{ wp_db_name }}.*:ALL"
   tags:
     - mariadb
+```
 
 The yum module will install mariadb and mysql-python (to communicate mysql with python) and store the status on the register variable "mysql_status"
 
@@ -391,10 +398,10 @@ Regarding with the mysql configuration
 > ignore_errors: true    _## once the mysql is installed, and root password is set, when we re-run the play, it will thow error as mysql root login can't be possible using null password. As a result the playbook will exit the process. 
 To avoid that we add  ignore_errors: true, even though there is error, the playbook will continue to check with next task.
 
-3. Configuring Wordpress
+### 3.Configuring Wordpress
 
-cat wordpress-configuration.yml
-
+For that I have created a file named wordpress-configuration.yml
+```
 ---
 - name: "Downloading Wordpress"
   get_url:
@@ -423,6 +430,7 @@ cat wordpress-configuration.yml
     dest: "/var/www/html/{{ domain_name }}/wp-config.php"
     owner: "{{ httpd_user }}"
     group: "{{ httpd_group }}"
+```
 
 How it works
 
@@ -432,11 +440,8 @@ remote_src: true  ## if this is not defined, by default, the src path mentioned 
 3. copy the contents from the extracted directory to our home directory. 
 4. copy the wp-config file from master server "wp-config.tmpl" as wp-config.php on the remote server's document root so that the database informations can be defined. 
 
-Once the above installation completed, we can proceed to create the main playbook file.
-
-Cat main.yml
-
-
+Once the above installation completed, we can proceed to create the main playbook file ie "main.yml".
+```
 ---
 - name: "LAMP-Wordpress"
   hosts: amazon
@@ -467,3 +472,4 @@ Cat main.yml
         name: httpd
         state: restarted
         enabled: true
+```
