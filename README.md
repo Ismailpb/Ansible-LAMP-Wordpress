@@ -132,7 +132,7 @@ cat virtualhost.conf.tmpl
 cat my.cnf.tmpl
 ---
 [client]
-user=mysqluser
+user=root
 password= {{ mysql_root_password }}
 ```
 
